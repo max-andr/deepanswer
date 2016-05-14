@@ -1,5 +1,5 @@
 # deepanswer
-Easy way to interact with Semantic Web by simple words
+Easy way to interact with Semantic Web by simple words: http://deepanswer.xyz
 
-Обзор литературы:
+# Обзор литературы:
 https://docs.google.com/document/d/1HMloHZPXEljnx_AhG_p3XIkg7mFfwn8_Ckq6KMawpjs/edit
