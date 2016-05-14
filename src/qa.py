@@ -1,1 +1,5 @@
-# test 2
+import pymorphy2 as morph
+
+
+analyzer = morph.MorphAnalyzer()
+
