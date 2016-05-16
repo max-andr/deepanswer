@@ -3,3 +3,6 @@
 
 # Object file
 *.o
+
+# Tmp files
+.~*.docx
