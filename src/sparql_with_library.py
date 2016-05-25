@@ -15,7 +15,7 @@ def query_sparql(query):
 query = """
 PREFIX dbres: <http://dbpedia.org/resource/>
 DESCRIBE dbres:Dnipro
-LIMIT 10
+LIMIT 10d
 """
 
 data = query_sparql(query)
