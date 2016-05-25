@@ -1,2 +1,4 @@
+spacy
+microsofttranslator
 pandas
 nltk
