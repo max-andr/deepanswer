@@ -40,17 +40,6 @@ string, cls, type_ = 'Dnipropetrovsk', 'place', 'Prefix'
 lookup_keyword(string, cls, type_)
 lookup_keyword('Dnipropetrovsk')
 lookup_keyword('Abraham Lincoln')
-Agent -> Person -> OfficeHolder
-get all relations for given CLASS (to restrict possible reasoning)
-
-использовать ontology:comment при матчинге вопроса и свойства (TF-IDF)
-ссылки на онтологию (описания entity) разные. использовать только DBPedia?
-
-ontology описывает entity: Class, ObjectProperty, ...
-rdfs:domain - область допустимых свойств
-rdfs:range - область допустимых значений
-подготовить это всё в виде теоретической части
-
 lookup_keyword('Авраам Линкольн')
 
 question = 'В какой стране родился Линкольн?'

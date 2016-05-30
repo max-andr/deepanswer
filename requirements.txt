@@ -1,3 +1,5 @@
+sklearn
+SPARQLWrapper
 spacy
 microsofttranslator
 pandas

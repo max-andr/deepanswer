@@ -1,191 +1,187 @@
-import re
-import json
+from abc import abstractmethod
+import src.knowledge_base as kdb
+import src.text_preprocessing as prepr
 from collections import defaultdict
-
-import nltk
-import requests
-import pymorphy2
-import pprint
-import pandas as pd
-from io import StringIO
-
-from SPARQLWrapper import SPARQLWrapper, JSON
-from microsofttranslator import Translator
-from sklearn.feature_extraction.text import CountVectorizer
+from operator import itemgetter
+from microsofttranslator import Translator, TranslateApiException
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
-pd.set_option('display.large_repr', 'truncate')
-# tables in 1 line
-# pd.set_option('display.max_columns', 0)
-# set width of 1 column
-pd.set_option('max_colwidth', 35)
-
-
-def translate(string, to_lang='en'):
-    translator = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=')
-    return translator.translate(string, to_lang)
-
-
-def lookup_keyword(string, cls='', type_='Keyword', max_hits=1):
-    url = 'http://lookup.dbpedia.org/api/search/' + type_ + 'Search'
-    params = {'QueryString': string,
-              'QueryClass':  cls,
-              'MaxHits':     max_hits}
-    headers = {'Accept': 'application/json'}
-    resp = json.loads(requests.
-                      get(url=url, params=params, headers=headers).
-                      text)
-    if resp['results']:
-        res = resp['results'][0]
-        uri = res['uri']
-        name = res['label']
-        description = res['description']
-        classes = [cls['uri'] for cls in res['classes']]
-        return uri, name, description, classes
-    else:
-        print('No results for <{0}> of class <{1}> (<{2}Search>)'.
-              format(string, cls, type_))
-
-
-def query_sparql(query):
-    sparql = SPARQLWrapper("http://dbpedia.org/sparql")
-    sparql.setReturnFormat(JSON)
-    sparql.setQuery(query)
-    return sparql.query().convert()
+from importlib import reload
+for module in [kdb, prepr]:
+    reload(module)
 
 
 class Property:
-    # TODO: test if it works
-    cached_prop_descr = dict()
-
-    def __init__(self, uri):
+    def __init__(self, uri, value):
         self.uri = uri
+        self.value = value
+        self.descr = kdb.DBPediaKnowledgeBase().get_property_descr(self.uri)
+
+    def get_value(self):
+        return self.value
 
     def get_descr(self):
-        if self.uri in self.cached_prop_descr:
-            descr = self.cached_prop_descr[self.uri]
-        else:
-            rdfs_descr = {'label':   'http://www.w3.org/2000/01/rdf-schema#label',
-                          'comment': 'http://www.w3.org/2000/01/rdf-schema#comment'}
-            r_json = query_sparql('DESCRIBE <{0}>'.format(self.uri))
-            descr = ''
-            for spo in r_json['results']['bindings']:
-                # if the given predicate is description (label or comment for ontology/property)
-                if spo['p']['value'] in rdfs_descr.values():
-                    descr += spo['o']['value'] + '\n'
-            self.cached_prop_descr[self.uri] = descr
-        return descr
+        return self.descr
+
+    def __str__(self):
+        return self.uri + ': ' + self.descr
+
+    def __repr__(self):
+        return 'Property: ' + self.uri
 
 
 class Entity:
     def __init__(self, uri):
         self.uri = uri
-        self.properties =
+        self.properties = []
 
     def get_properties(self):
-        """
-        :param uri: URI of some entity
-        :return: dictionary {property: value} for the entity
-        """
-        query = """
-        select distinct ?property, ?subject, ?obj
-        where {{
-             ?subject a <{0}> .
-             ?subject ?property ?obj .
-             FILTER(?subject=<{1}>)
-        }}
-        """
-        query_with_values = query.format('http://dbpedia.org/ontology/Place', self.uri)
-        r_json = query_sparql(query_with_values)
-        prop_dict = defaultdict(list)
-        for spo in r_json['results']['bindings']:
-            prop_uri = spo['property']['value']
-            prop_value = spo['obj']['value']
-            prop_dict[prop_uri] += [prop_value]
-        return prop_dict
+        if not self.properties:
+            # fetch properties from knowledge base if they are empty
+            prop_dict = kdb.DBPediaKnowledgeBase().get_entity_properties(self.uri)
+            for key in prop_dict.keys():
+                self.properties.append(Property(key, prop_dict[key]))
+        return self.properties
+
+    def get_prop_descrs(self):
+        return [prop.descr for prop in self.get_properties()]
+
+    def get_most_similar_prop(self, question, print_top_n=5):
+        # TODO: надо расширять запрос синонимами (founded -> established, humidity -> precipitation)
+        # not include <main_word> in BagOfWord dictionary
+        filter_list = prepr.QATokenizer('question', debug_info=True)(question.main_word)
+        print(filter_list)
+        vect = TfidfVectorizer(ngram_range=(1, 3), sublinear_tf=True,
+                               tokenizer=prepr.QATokenizer('property', debug_info=True),
+                               vocabulary=filter(lambda w: w not in filter_list, question.tokens))
+        props_matrix = vect.fit_transform(self.get_prop_descrs())
+
+        # Change tokenizer to handle questions
+        vect.tokenizer = prepr.QATokenizer('question', debug_info=True)
+        q_vector = vect.transform([question.text_en])
+        print('Bag of words vocabulary:', vect.get_feature_names())
+        sims = cosine_similarity(q_vector, props_matrix).flatten()
+        top_sims = sims.argsort()[:-print_top_n - 1:-1]
+        top_n_properties = itemgetter(*top_sims)(self.get_properties())
+        print('Top {0} properties by Bag of Words similarity:'.format(print_top_n),
+              *top_n_properties, sep='\n')
+        return top_n_properties[0]
+
+    def __str__(self):
+        return self.uri + '\n'.join(self.properties)
+
+    def __repr__(self):
+        return 'Entity: ' + self.uri
 
 
-question = translate('Какой почтовый код у Днепропетровска?')
-q_words = nltk.word_tokenize(question)
-# TODO: логика выделения существительного
+class QuestionCategorizer:
+    def __init__(self, text_ru):
+        self.text_ru = text_ru
 
-main_word = 'Dnipropetrovsk'
-entity_uri = lookup_keyword(main_word)[0]
-# TODO: определять Place or Settlement or ... через Lookup
-
-entity = Entity(entity_uri)
-prop_dict = entity.get_properties()
-
-prop_descr_dict = dict()
-for key in prop_dict.keys():
-    prop_descr_dict[key] = Property(key).get_descr()
-    print("Fetching property descriptions:", prop_descr_dict[key])
+    def get_question_type(self):
+        # TODO: логика определения типа вопроса
+        # return Question subclass
+        pass
 
 
-# TODO: в функцию обернуть тоже
-# restrict vocabulary only to words in questions
-vect = CountVectorizer(ngram_range=(1, 3),
-                       vocabulary=filter(lambda w: w != main_word, q_words))
-# TODO: change to TF-IDF vectorizer
-props_matrix = vect.fit_transform(prop_descr_dict.values())
-q_vector = vect.transform([question])
+class Question:
+    """
+    Abstract base class for different Question types.
+    """
+    def __init__(self, text_ru):
+        self.text_ru = text_ru
+        self.text_en = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=').\
+            translate(text_ru, 'en')
+        self.tokenizer = prepr.QATokenizer('question', debug_info=True)
+        self.tokens = self.tokenizer(self.text_en)
 
-sims = cosine_similarity(q_vector, props_matrix).flatten()
-top_sims = sims.argsort()[:-5:-1]
-print(top_sims)
-как бы получить по номеру ссылку на сущность?
-# TODO: токенайзер придумать (на почте)
-ngrams = vect.get_feature_names()
-print(ngrams)
+    def __str__(self):
+        return ('Question ru: ' + question.text_ru + '\n' +
+                'Question en: ' + question.text_en)
 
-# TODO: по каждому property получить описание функцией get_property_descr
-# подлежащее - тоже класс с разными методами
-# property/ontology сделать как класс с методом получения описания
-# sparql и лукап запросы в модуль dbpedia_api
-
-prop_descr = get_property_descr('http://dbpedia.org/property/julPrecipitationMm')
-print(prop_descr)
+    @abstractmethod
+    def get_answer(self):
+        pass
 
 
+class BooleanQuestion(Question):
+    """
+    Question with True/False answer:
+    'Авраам Линкольн был человеком?'
+    'Днепропетровск - это город в Украине?'
+    """
+    def __init__(self, text_ru):
+        super().__init__(text_ru)
 
-# TODO: natural_language -> syntax parsed format -> SPARQL
-# TODO: Named Entity Recognition! Find out, what word is central?
-# TODO: type of question as multi-class text categorization.
-# But history on russian Qs?
-# probably some heuristics will work.
+    def get_answer(self):
+        pass
 
-# intermediate format example
-# "person": "Tim Berners-Lee"
-# "birth place": "London, UK"
 
-# TODO: question type classification
+class DescribeQuestion(Question):
+    """
+    Question that give description for asked entity, e.g.:
+    'Где находится Днепропетровск?'
+    'Кто такой Авраам Линкольн?'
+    """
+    def __init__(self, text_ru):
+        super().__init__(text_ru)
 
-# question = 'В какой стране родился Линкольн?'
-# question = 'В какой стране живёт Линкольн?'
-# question = 'В какой стране находится Днепропетровск?'
-q_constructions = {'в каком году':   ['year'],
-                   'в каком городе': ['place'],
-                   'в какой стране': ['country'],
-                   'где находится':  ['place', 'country'],
-                   '':               ''}
-q_verb = {'родиться':   ['birthPlace'],
-          'находиться': ['situatedIn'],
-          'жить':       ['livesIn']}
+    def get_answer(self):
+        pass
 
-morph = pymorphy2.MorphAnalyzer()
-vect = CountVectorizer(ngram_range=(1, 3))
-vect.fit_transform([question])
 
-# TODO: токенайзер придумать (на почте)
-ngrams = vect.get_feature_names()
-print(ngrams)
+class PropertyQuestion(Question):
+    """
+    Question about some property of object, e.g.:
+    'Кто мэр в Павлограде?'
+    'Где убили Джона Кеннеди?'
+    """
+    def __init__(self, text_ru):
+        super().__init__(text_ru)
+        self.main_word = self.find_main_word()
+        self.main_entity_uri = self.find_main_entity(self.main_word)
+        self.main_entity = Entity(self.main_entity_uri)
 
-for ngram in [ngram for ngram in ngrams if len(ngram.split()) == 1]:
-    pos = morph.parse(ngram)[0].tag.POS
-    print(ngram, '__', pos)
+    def get_answer(self):
+        top_property = self.main_entity.get_most_similar_prop(question)
+        return Answer(top_property)
 
-# TODO: 2 большие буквы
-# TODO: multi-class classification по каждому вопросу;
-# предсказать relationType (bornIn, livesIn, aKindOf);
-# обучаться на Википедии; ... born in ... - предложение with positive label.
+    @staticmethod
+    def find_main_entity(main_word):
+        return kdb.DBPediaKnowledgeBase().search(main_word)[0]
 
+    @staticmethod
+    def find_main_word():
+        # TODO: придумать алгоритм определения нахождения главного слова или конструкции
+        return 'Pavlograd'
+
+
+class Answer:
+    def __init__(self, property):
+        self.property = property
+
+    def __str__(self):
+        return 'Answer: ' + ', '.join(self.property.get_value())
+
+
+# TODO: проверить, чтобы числа оставались после предобработки. Например, что произошло в 1776 году
+question = PropertyQuestion('Какое население Павлограда?')
+# TODO: def ask(question, debug_info=True):
+# TODO: если похожесть близка к нулю - то сказать, что сорри, ответа не найдено
+# TODO: достаточно медленная токенизация, подумать
+answer = question.get_answer()
+print(question, answer, sep='\n')
+
+# TODO: Нужно уже задуматься о тестах, чтобы оценивать качество нововведений автоматически...
+
+"""
+"Profiler for tokenization.
+NoSQL Amazon storage. Or key-value disk persistentcache. Research it and start to use smth.
+Автоматическая система тестирования."
+"""
+# ссылки на онтологию (описания entity) разные. использовать только DBPedia?
+#
+# ontology описывает entity: Class, ObjectProperty, ...
+# rdfs:domain - область допустимых свойств
+# rdfs:range - область допустимых значений
+# подготовить это всё в виде теоретической части
