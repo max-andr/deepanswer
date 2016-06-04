@@ -2,6 +2,8 @@ import re
 import nltk
 from nltk.corpus import wordnet
 from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.tag.perceptron import PerceptronTagger
+import src.utils as utils
 
 
 def get_wordnet_pos(tag):
@@ -20,16 +22,24 @@ class QATokenizer:
             print('Tokenizer for <{0}> init...'.format(doc_type))
         self.debug_info = debug_info
         self.lemmatizer = WordNetLemmatizer()
+        wordnet.ensure_loaded()
+        self.tagger = PerceptronTagger()
         # Different options for different texts
         if doc_type == 'question':
-            self.substitutions = {'site': 'website',
-                                  'mayor': 'leader',
-                                  'who': 'name',
+            # Easy way to cover more questions
+            self.substitutions = {'who': 'name',
                                   'whom': 'name',
                                   'whose': 'name',
                                   'where': 'country',
                                   'why': 'reason',
-                                  'when': 'date'}
+                                  'when': 'date',
+                                  'site': 'website',
+                                  'mayor': 'leader',
+                                  'population': ['population', 'total'],
+                                  'founded': ['founded', 'established'],
+                                  'humidity': ['humidity', 'precipitation'],
+                                  'description': ['description', 'abstract']
+                                  }
             self.black_list_substr = []
             self.black_list_match = ['be']
         elif doc_type == 'property':
@@ -77,7 +87,7 @@ class QATokenizer:
             :return: list of normalized word forms
             """
             tokens_new = []
-            for word, tag in nltk.pos_tag(tokens):
+            for word, tag in nltk.tag._pos_tag(tokens, None, self.tagger):
                 wn_tag = get_wordnet_pos(tag)
                 if wn_tag:
                     normalized_word = self.lemmatizer.lemmatize(word, wn_tag)
@@ -92,7 +102,15 @@ class QATokenizer:
             return tokens_new
 
         def handle_substitution(tokens):
-            return [substitute(token) for token in tokens]
+            tokens_new = []
+            for token in tokens:
+                subst = substitute(token)
+                if type(subst) is str:
+                    tokens_new.append(subst)
+                elif type(subst) is list:
+                    for s in subst:
+                        tokens_new.append(s)
+            return utils.unique_values(tokens_new)
 
         tokens = nltk.word_tokenize(doc.lower())
         tokens = handle_substitution(tokens)

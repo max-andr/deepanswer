@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from time import time
 import src.knowledge_base as kdb
 import src.text_preprocessing as prepr
 from collections import defaultdict
@@ -47,7 +48,6 @@ class Entity:
         return [prop.descr for prop in self.get_properties()]
 
     def get_most_similar_prop(self, question, print_top_n=5):
-        # TODO: надо расширять запрос синонимами (founded -> established, humidity -> precipitation)
         # not include <main_word> in BagOfWord dictionary
         filter_list = prepr.QATokenizer('question', debug_info=True)(question.main_word)
         print(filter_list)
@@ -163,24 +163,23 @@ class Answer:
     def __str__(self):
         return 'Answer: ' + ', '.join(self.property.get_value())
 
+    def __repr__(self):
+        return self.__str__()
 
-# TODO: проверить, чтобы числа оставались после предобработки. Например, что произошло в 1776 году
-question = PropertyQuestion('Какое население Павлограда?')
+
+t0 = time()
+question = PropertyQuestion('Вебсайт Павлограда?')
 # TODO: def ask(question, debug_info=True):
 # TODO: если похожесть близка к нулю - то сказать, что сорри, ответа не найдено
-# TODO: достаточно медленная токенизация, подумать
 answer = question.get_answer()
-print(question, answer, sep='\n')
+print(question, answer, time() - t0, sep='\n')
+
+# TODO: QA: по идее, будет превышен лимит в 1024 символа и надо будет брать первые 1024
+
+# TODO: если answer - это ссылка, то пойти по ней.
 
 # TODO: Нужно уже задуматься о тестах, чтобы оценивать качество нововведений автоматически...
 
-"""
-"Profiler for tokenization.
-NoSQL Amazon storage. Or key-value disk persistentcache. Research it and start to use smth.
-Автоматическая система тестирования."
-"""
-# ссылки на онтологию (описания entity) разные. использовать только DBPedia?
-#
 # ontology описывает entity: Class, ObjectProperty, ...
 # rdfs:domain - область допустимых свойств
 # rdfs:range - область допустимых значений

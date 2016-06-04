@@ -1,12 +1,18 @@
 import json
 from collections import defaultdict
+from importlib import reload
+
 import requests
 from SPARQLWrapper import SPARQLWrapper, JSON
+import src.data as db
+for module in [db]:
+    reload(module)
 
 
 class DBPediaKnowledgeBase:
-    # TODO: нужно хранить в БД заранее
-    cached_prop_descr = dict()
+    _db = db.DB()
+    prop_descr = _db.get_all_property_descr()
+    cached_prop_descr = prop_descr.copy()
 
     def __init__(self):
         self.sparql_uri = 'http://dbpedia.org/sparql'
@@ -43,9 +49,19 @@ class DBPediaKnowledgeBase:
     def get_entity_properties(self, entity_uri):
         """
         Fetch properties for the given entity.
+        Query example:
+        select distinct ?property, ?subject, ?obj
+        where {
+             ?subject a <http://dbpedia.org/ontology/Place> .
+             ?subject ?property ?obj .
+             FILTER(?subject=<http://dbpedia.org/resource/Pavlohrad>)
+        }
         :param entity_uri: URI of the entity
         :return: dictionary of pairs (property URI, property value)
         """
+        def is_dbpedia_property(prop):
+            return 'http://dbpedia.org/' in prop
+
         # TODO: тоже нужно хранить в БД заранее
         # TODO: определять Place or Settlement or ... через Lookup
         entity_class = 'http://dbpedia.org/ontology/Place'
@@ -61,9 +77,14 @@ class DBPediaKnowledgeBase:
         r_json = self.sparql(query_with_values)
         prop_dict = defaultdict(list)
         for spo in r_json['results']['bindings']:
-            prop_uri = spo['property']['value']
-            prop_value = spo['obj']['value']
-            prop_dict[prop_uri] += [prop_value]
+            # Add (property -> value) if property is from DBPedia and thus has description
+            if is_dbpedia_property(spo['property']['value']):
+                # Add (property -> value) if lang is not defined (for links) or if it is
+                # russian or english (thus eliminate 'de', 'jp', ...)
+                if 'xml:lang' not in spo['obj'] or spo['obj']['xml:lang'] in ('ru', 'en'):
+                    prop_uri = spo['property']['value']
+                    prop_value = spo['obj']['value']
+                    prop_dict[prop_uri] += [prop_value]
         return prop_dict
 
     def get_property_descr(self, property_uri):
@@ -83,8 +104,14 @@ class DBPediaKnowledgeBase:
                     if spo['o']['lang'] == 'en':
                         descr_list.append(spo['o']['value'])
             descr = ' | '.join(descr_list)
-            self.cached_prop_descr[property_uri] = descr
+
+            self._add_to_cached_prop_descr(property_uri, descr)
         return descr
+
+    def _add_to_cached_prop_descr(self, property_uri: str, descr: str):
+        self.cached_prop_descr[property_uri] = descr
+        self._db.put_property_descr(property_uri, descr)
+
 
 
 
