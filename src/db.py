@@ -8,7 +8,6 @@ class DB:
     Adapter for AWS Simple DB.
     """
 
-
     def __init__(self):
         self.client = boto3.client('sdb')
         self.property_domain = 'properties'
@@ -108,8 +107,9 @@ class DB:
 
 
 def admin_queries():
+    db = DB()
     db.client.create_domain(DomainName='properties')
-    db.client.create_domain(DomainName=self.qa_domain)
+    db.client.create_domain(DomainName='questions')
     db.client.list_domains()
     # db.client.delete_domain(DomainName='properties')
 

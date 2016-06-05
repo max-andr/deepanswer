@@ -1,8 +1,10 @@
 import re
 import nltk
+import pymorphy2
 from nltk.corpus import wordnet
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.tag.perceptron import PerceptronTagger
+
 import src.utils as utils
 
 
@@ -41,11 +43,11 @@ class QATokenizer:
                                   'description': ['description', 'abstract']
                                   }
             self.black_list_substr = []
-            self.black_list_match = ['be']
+            self.black_list_match = ['be', 'do']
         elif doc_type == 'property':
             self.substitutions = {}
             self.black_list_substr = []
-            self.black_list_match = ['be']
+            self.black_list_match = ['be', 'do']
         else:
             raise ValueError('Other types for tokenization are not supported')
         self.step = 0
@@ -123,3 +125,38 @@ class QATokenizer:
             print(self.step, tokens)
         return tokens
 
+
+class PatternMatcher:
+    morph = pymorphy2.MorphAnalyzer()
+
+    def __init__(self):
+        pass
+
+    def transform_question(self, question, pattern):
+        replaces = ('?', ''), ('!', '')
+        if 'NOUN' in pattern or 'VERB' in pattern:
+            pos_text_list = []
+            for token in nltk.word_tokenize(utils.multi_replace(question, replaces)):
+                pos = str(self.morph.tag(token)[0].POS)
+                if pos in ('NOUN', 'VERB'):
+                    if not pos_text_list:
+                        pos_text_list.append(pos)
+                    else:
+                        # 1 POS instead of 2 POS going one after another
+                        if pos_text_list[-1] != pos:
+                            pos_text_list.append(pos)
+                else:
+                    pos_text_list.append(token)
+            pos_text = ' '.join(pos_text_list)
+            return pos_text
+        return question
+
+    def __call__(self, question, pattern):
+        question = question.strip()
+        regex_replaces = ('*', '(.*)'),
+        # regex_pattern = r'^Кто такой (.*)$'
+        regex_pattern = utils.multi_replace(pattern, regex_replaces) + '$'
+        question_form = self.transform_question(question, pattern)
+        regex_result = re.match(regex_pattern, question_form)
+        # print(question, pattern, regex_result, regex_result, sep=' | ')
+        return bool(regex_result)

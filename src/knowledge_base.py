@@ -4,7 +4,7 @@ from importlib import reload
 
 import requests
 from SPARQLWrapper import SPARQLWrapper, JSON
-import src.data as db
+import src.db as db
 for module in [db]:
     reload(module)
 
@@ -62,7 +62,6 @@ class DBPediaKnowledgeBase:
         def is_dbpedia_property(prop):
             return 'http://dbpedia.org/' in prop
 
-        # TODO: тоже нужно хранить в БД заранее
         # TODO: определять Place or Settlement or ... через Lookup
         entity_class = 'http://dbpedia.org/ontology/Place'
         query = """

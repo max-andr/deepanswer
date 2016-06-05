@@ -1,14 +1,17 @@
 from abc import abstractmethod
-from time import time
-import src.knowledge_base as kdb
-import src.text_preprocessing as prepr
-from collections import defaultdict
-from operator import itemgetter
-from microsofttranslator import Translator, TranslateApiException
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from importlib import reload
-for module in [kdb, prepr]:
+from operator import itemgetter
+from time import time
+
+from microsofttranslator import Translator
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+import src.knowledge_base as kdb
+import src.text as txt
+import src.utils as utils
+
+for module in [kdb, txt, utils]:
     reload(module)
 
 
@@ -47,25 +50,25 @@ class Entity:
     def get_prop_descrs(self):
         return [prop.descr for prop in self.get_properties()]
 
-    def get_most_similar_prop(self, question, print_top_n=5):
+    def get_most_similar_prop(self, text_en, main_word, tokens, print_top_n=5):
         # not include <main_word> in BagOfWord dictionary
-        filter_list = prepr.QATokenizer('question', debug_info=True)(question.main_word)
-        print(filter_list)
         vect = TfidfVectorizer(ngram_range=(1, 3), sublinear_tf=True,
-                               tokenizer=prepr.QATokenizer('property', debug_info=True),
-                               vocabulary=filter(lambda w: w not in filter_list, question.tokens))
+                               tokenizer=txt.QATokenizer('property', debug_info=True),
+                               stop_words=[main_word]
+                               )
         props_matrix = vect.fit_transform(self.get_prop_descrs())
 
         # Change tokenizer to handle questions
-        vect.tokenizer = prepr.QATokenizer('question', debug_info=True)
-        q_vector = vect.transform([question.text_en])
+        vect.tokenizer = txt.QATokenizer('question', debug_info=True)
+        q_vector = vect.transform([text_en])
         print('Bag of words vocabulary:', vect.get_feature_names())
         sims = cosine_similarity(q_vector, props_matrix).flatten()
         top_sims = sims.argsort()[:-print_top_n - 1:-1]
         top_n_properties = itemgetter(*top_sims)(self.get_properties())
         print('Top {0} properties by Bag of Words similarity:'.format(print_top_n),
-              *top_n_properties, sep='\n')
-        return top_n_properties[0]
+              *zip(top_n_properties, sims[top_sims]), sep='\n')
+        # return Property and confidence level
+        return top_n_properties[0], sims[top_sims][0]
 
     def __str__(self):
         return self.uri + '\n'.join(self.properties)
@@ -76,43 +79,51 @@ class Entity:
 
 class QuestionCategorizer:
     def __init__(self, text_ru):
-        self.text_ru = text_ru
+        self.text_ru = text_ru.strip()
+        self.pattern_matcher = txt.PatternMatcher()
+        self.question_types = [DescribeQuestion, PropertyQuestion, WrongQuestion]
 
-    def get_question_type(self):
-        # TODO: логика определения типа вопроса
-        # return Question subclass
-        pass
+    def categorize(self):
+        scores = []
+        for qtype in self.question_types:
+            patterns = qtype.get_pattern()
+            score = self._score_pattern_matching(self.text_ru, patterns)
+            scores.append(score)
+        arg_i = utils.argmax(scores)
+        categorized_qtype = self.question_types[arg_i]
+        return categorized_qtype(self.text_ru)
+
+    def _score_pattern_matching(self, text_ru, patterns):
+        for pattern in patterns:
+            bool_result = self.pattern_matcher(text_ru, pattern)
+            if bool_result:
+                return True
+        return False
 
 
 class Question:
     """
     Abstract base class for different Question types.
     """
+    translator = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=')
+
     def __init__(self, text_ru):
         self.text_ru = text_ru
-        self.text_en = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=').\
-            translate(text_ru, 'en')
-        self.tokenizer = prepr.QATokenizer('question', debug_info=True)
+        self.text_en = self.translator.translate(text_ru, 'en')
+        self.tokenizer = txt.QATokenizer('question', debug_info=True)
         self.tokens = self.tokenizer(self.text_en)
 
     def __str__(self):
-        return ('Question ru: ' + question.text_ru + '\n' +
+        return ('Question type: ' + str(self.__class__) + '\n'
+                'Question ru: ' + question.text_ru + '\n' +
                 'Question en: ' + question.text_en)
 
+    @staticmethod
     @abstractmethod
-    def get_answer(self):
+    def get_pattern():
         pass
 
-
-class BooleanQuestion(Question):
-    """
-    Question with True/False answer:
-    'Авраам Линкольн был человеком?'
-    'Днепропетровск - это город в Украине?'
-    """
-    def __init__(self, text_ru):
-        super().__init__(text_ru)
-
+    @abstractmethod
     def get_answer(self):
         pass
 
@@ -123,10 +134,16 @@ class DescribeQuestion(Question):
     'Где находится Днепропетровск?'
     'Кто такой Авраам Линкольн?'
     """
+
     def __init__(self, text_ru):
         super().__init__(text_ru)
 
+    @staticmethod
+    def get_pattern():
+        return ['NOUN', 'Кто такой NOUN', 'Что такое NOUN']
+
     def get_answer(self):
+        # TODO: implement
         pass
 
 
@@ -142,9 +159,17 @@ class PropertyQuestion(Question):
         self.main_entity_uri = self.find_main_entity(self.main_word)
         self.main_entity = Entity(self.main_entity_uri)
 
+    @staticmethod
+    def get_pattern():
+        return ['* NOUN',]
+
     def get_answer(self):
-        top_property = self.main_entity.get_most_similar_prop(question)
-        return Answer(top_property)
+        top_property, confidence = self.main_entity.\
+            get_most_similar_prop(self.text_en, self.main_word, self.tokens)
+        if confidence > 0.0001:
+            return top_property.get_value()[0]
+        else:
+            return 'Пожалуйста, перефразируйте вопрос!'
 
     @staticmethod
     def find_main_entity(main_word):
@@ -156,31 +181,32 @@ class PropertyQuestion(Question):
         return 'Pavlograd'
 
 
-class Answer:
-    def __init__(self, property):
-        self.property = property
+class WrongQuestion(Question):
+    """
+    Question with no pattern matches.
+    """
 
-    def __str__(self):
-        return 'Answer: ' + ', '.join(self.property.get_value())
+    def __init__(self, text_ru):
+        super().__init__(text_ru)
 
-    def __repr__(self):
-        return self.__str__()
+    @staticmethod
+    def get_pattern():
+        return ['*', ]
+
+    def get_answer(self):
+        return ('Тип вопроса не распознан. '
+                'Спросите о какой-нибудь сущности либо её свойстве.')
 
 
-t0 = time()
-question = PropertyQuestion('Вебсайт Павлограда?')
 # TODO: def ask(question, debug_info=True):
-# TODO: если похожесть близка к нулю - то сказать, что сорри, ответа не найдено
-answer = question.get_answer()
-print(question, answer, time() - t0, sep='\n')
+if __name__ == '__main__':
+    t0 = time()
+    # question = PropertyQuestion('Какой почтовый код Павлограда?')
+    question = QuestionCategorizer('Что такое Павлоград?').categorize()
+    answer = question.get_answer()
+    print(question, answer, time() - t0, sep='\n')
 
-# TODO: QA: по идее, будет превышен лимит в 1024 символа и надо будет брать первые 1024
+    # TODO: если answer - это ссылка, то пойти по ней. (или выделить ответ)
 
-# TODO: если answer - это ссылка, то пойти по ней.
 
-# TODO: Нужно уже задуматься о тестах, чтобы оценивать качество нововведений автоматически...
 
-# ontology описывает entity: Class, ObjectProperty, ...
-# rdfs:domain - область допустимых свойств
-# rdfs:range - область допустимых значений
-# подготовить это всё в виде теоретической части

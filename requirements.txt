@@ -1,3 +1,4 @@
+pymorphy2
 boto3
 sklearn
 SPARQLWrapper
