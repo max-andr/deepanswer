@@ -1,5 +1,6 @@
 import datetime as dt
 import boto3
+import botocore.exceptions
 from urllib.parse import quote_plus, unquote_plus
 
 
@@ -45,10 +46,14 @@ class DB:
         :return:
         """
         property_dict = {'time_add':    str(dt.datetime.now()),
-                         'uri':         property_uri,
+                         'uri':         quote_plus(property_uri),
                          'description': quote_plus(property_descr)}
-        self.client.put_attributes(DomainName=self.property_domain, ItemName=property_uri,
-                                   Attributes=self.put_attr_format(property_dict, replace=True))
+        try:
+            self.client.put_attributes(DomainName=self.property_domain, ItemName=property_uri,
+                                       Attributes=self.put_attr_format(property_dict, replace=True))
+        except botocore.exceptions.ClientError as e:
+            print(e)
+
 
     def get_property_descr(self, property_uri: str) -> str:
         """
@@ -69,13 +74,14 @@ class DB:
         """
         r = self.client.select(SelectExpression="SELECT uri, description FROM properties "
                                                 "WHERE uri is not NULL and "
-                                                "      description is not NULL")
+                                                "      description is not NULL "
+                                                "LIMIT 2500")
 
         prop_descr = dict()
         for item in r['Items']:
             if 'Attributes' in item:
                 flat_dict = self.get_attr_format(item['Attributes'])
-                prop_descr[flat_dict['uri']] = unquote_plus(flat_dict['description'])
+                prop_descr[unquote_plus(flat_dict['uri'])] = unquote_plus(flat_dict['description'])
         return prop_descr
 
     def put_qa(self, question_ru: str, question_en: str, answer: str,
@@ -106,13 +112,17 @@ class DB:
         return r
 
 
-def admin_queries():
+def _admin_queries():
     db = DB()
     db.client.create_domain(DomainName='properties')
     db.client.create_domain(DomainName='questions')
     db.client.list_domains()
     # db.client.delete_domain(DomainName='properties')
 
+def _get_properties():
+    db = DB()
+    d = db.get_all_property_descr()
+    len(d.keys())
 # db = DB()
 # db.put_property_descr('http://dbpedia.org/property/website', 'Website')
 # db.put_property_descr('http://dbpedia.org/property/abstract', 'abstract')

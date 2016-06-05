@@ -5,7 +5,8 @@ from importlib import reload
 import requests
 from SPARQLWrapper import SPARQLWrapper, JSON
 import src.db as db
-for module in [db]:
+import src.utils as utils
+for module in [db, utils]:
     reload(module)
 
 
@@ -13,6 +14,9 @@ class DBPediaKnowledgeBase:
     _db = db.DB()
     prop_descr = _db.get_all_property_descr()
     cached_prop_descr = prop_descr.copy()
+    # list of meaningless properties for QA system
+    prop_black_list = ['http://dbpedia.org/property/years',
+                       'http://dbpedia.org/property/name']
 
     def __init__(self):
         self.sparql_uri = 'http://dbpedia.org/sparql'
@@ -33,11 +37,13 @@ class DBPediaKnowledgeBase:
             uri = res['uri']
             name = res['label']
             description = res['description']
-            classes = [cls['uri'] for cls in res['classes']]
+            classes = [cls['uri'] for cls in res['classes']
+                       if utils.is_dbpedia_link(cls['uri'])]
             return uri, name, description, classes
         else:
             print('No results for <{0}> of class <{1}> (<{2}Search>)'.
                   format(string, cls, type_))
+            return None
 
     def sparql(self, query):
         sparql = SPARQLWrapper(self.sparql_uri)
@@ -46,7 +52,7 @@ class DBPediaKnowledgeBase:
         sparql.setQuery(query)
         return sparql.query().convert()
 
-    def get_entity_properties(self, entity_uri):
+    def get_entity_properties(self, entity_uri, entity_class):
         """
         Fetch properties for the given entity.
         Query example:
@@ -59,11 +65,8 @@ class DBPediaKnowledgeBase:
         :param entity_uri: URI of the entity
         :return: dictionary of pairs (property URI, property value)
         """
-        def is_dbpedia_property(prop):
-            return 'http://dbpedia.org/' in prop
 
-        # TODO: определять Place or Settlement or ... через Lookup
-        entity_class = 'http://dbpedia.org/ontology/Place'
+        # entity_class = 'http://dbpedia.org/ontology/Place'
         query = """
         select distinct ?property, ?subject, ?obj
         where {{
@@ -77,7 +80,7 @@ class DBPediaKnowledgeBase:
         prop_dict = defaultdict(list)
         for spo in r_json['results']['bindings']:
             # Add (property -> value) if property is from DBPedia and thus has description
-            if is_dbpedia_property(spo['property']['value']):
+            if utils.is_dbpedia_link(spo['property']['value']):
                 # Add (property -> value) if lang is not defined (for links) or if it is
                 # russian or english (thus eliminate 'de', 'jp', ...)
                 if 'xml:lang' not in spo['obj'] or spo['obj']['xml:lang'] in ('ru', 'en'):
@@ -87,6 +90,9 @@ class DBPediaKnowledgeBase:
         return prop_dict
 
     def get_property_descr(self, property_uri):
+        if property_uri in self.prop_black_list:
+            # Just return empty description
+            return ''
         if property_uri in self.cached_prop_descr:
             descr = self.cached_prop_descr[property_uri]
         else:
@@ -113,5 +119,7 @@ class DBPediaKnowledgeBase:
 
 
 
-
-
+# 'é'.encode().decode()
+# 'é'.encode()
+# kdb = DBPediaKnowledgeBase()
+# kdb.search('Lenin')

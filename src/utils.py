@@ -1,5 +1,24 @@
 from functools import reduce
+from urllib.parse import urlparse
 
+
+def is_link(string):
+    p = urlparse(string)
+    if (p.scheme in ('http', 'https') and p.netloc != '' and
+                p.path != ''):
+        return True
+    else:
+        return False
+
+def is_dbpedia_link(prop):
+    return 'http://dbpedia.org/' in prop
+
+def extract_link_entity(string):
+    p = urlparse(string)
+    if (p.scheme in ('http', 'https') and p.netloc != '' and
+                p.path != ''):
+        last_val_after_slash = p.path.split('/')[-1]
+        return last_val_after_slash.replace('_', ' ')
 
 def unique_values(seq) -> list:
     seen = set()

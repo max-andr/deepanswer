@@ -16,13 +16,13 @@ for module in [kdb, txt, utils]:
 
 
 class Property:
-    def __init__(self, uri, value):
+    def __init__(self, uri, values):
         self.uri = uri
-        self.value = value
+        self.values = values
         self.descr = kdb.DBPediaKnowledgeBase().get_property_descr(self.uri)
 
-    def get_value(self):
-        return self.value
+    def get_values(self):
+        return self.values
 
     def get_descr(self):
         return self.descr
@@ -35,14 +35,18 @@ class Property:
 
 
 class Entity:
-    def __init__(self, uri):
+    def __init__(self, uri, name, description, classes):
         self.uri = uri
+        self.name = name
+        self.description = description
+        self.classes = classes
+        self.main_class = classes[0] # not so wise, but sufficient
         self.properties = []
 
     def get_properties(self):
         if not self.properties:
             # fetch properties from knowledge base if they are empty
-            prop_dict = kdb.DBPediaKnowledgeBase().get_entity_properties(self.uri)
+            prop_dict = kdb.DBPediaKnowledgeBase().get_entity_properties(self.uri, self.main_class)
             for key in prop_dict.keys():
                 self.properties.append(Property(key, prop_dict[key]))
         return self.properties
@@ -50,11 +54,11 @@ class Entity:
     def get_prop_descrs(self):
         return [prop.descr for prop in self.get_properties()]
 
-    def get_most_similar_prop(self, text_en, main_word, tokens, print_top_n=5):
+    def get_most_similar_prop(self, text_en, subject_tokens, tokens, print_top_n=5):
         # not include <main_word> in BagOfWord dictionary
         vect = TfidfVectorizer(ngram_range=(1, 3), sublinear_tf=True,
                                tokenizer=txt.QATokenizer('property', debug_info=True),
-                               stop_words=[main_word]
+                               stop_words=subject_tokens
                                )
         props_matrix = vect.fit_transform(self.get_prop_descrs())
 
@@ -106,6 +110,9 @@ class Question:
     Abstract base class for different Question types.
     """
     translator = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=')
+    msg_rephrase = 'Пожалуйста, перефразируйте вопрос!'
+    msg_unknown_type = ('Тип вопроса не распознан. '
+                        'Спросите о какой-нибудь сущности либо её свойстве.')
 
     def __init__(self, text_ru):
         self.text_ru = text_ru
@@ -131,20 +138,35 @@ class Question:
 class DescribeQuestion(Question):
     """
     Question that give description for asked entity, e.g.:
-    'Где находится Днепропетровск?'
+    'Что такое Днепропетровск?'
     'Кто такой Авраам Линкольн?'
+    'Днепропетровск'
     """
 
     def __init__(self, text_ru):
         super().__init__(text_ru)
+        self.subject_ru = self.find_subject(self.text_ru)
+        self.subject_en = self.translator.translate(self.subject_ru, 'en')
+        uri, name, description, classes = self.search_subject(self.subject_en)
+        self.main_entity = Entity(uri, name, description, classes)
 
     @staticmethod
     def get_pattern():
         return ['NOUN', 'Кто такой NOUN', 'Что такое NOUN']
 
     def get_answer(self):
-        # TODO: implement
-        pass
+        descr = self.main_entity.description
+        return self.translator.translate(descr, 'ru')
+
+    @staticmethod
+    def search_subject(main_word):
+        uri, name, description, classes = kdb.DBPediaKnowledgeBase().search(main_word)
+        return uri, name, description, classes
+
+    @staticmethod
+    def find_subject(text_ru):
+        subject_finder = txt.SubjectFinder()
+        return subject_finder(text_ru)
 
 
 class PropertyQuestion(Question):
@@ -153,11 +175,14 @@ class PropertyQuestion(Question):
     'Кто мэр в Павлограде?'
     'Где убили Джона Кеннеди?'
     """
+
     def __init__(self, text_ru):
         super().__init__(text_ru)
-        self.main_word = self.find_main_word()
-        self.main_entity_uri = self.find_main_entity(self.main_word)
-        self.main_entity = Entity(self.main_entity_uri)
+        self.subject_ru = self.find_subject(self.text_ru)
+        self.subject_en = self.translator.translate(self.subject_ru, 'en')
+        self.subject_tokens = self.tokenizer(self.subject_en)
+        uri, name, description, classes = self.search_subject(self.subject_en)
+        self.main_entity = Entity(uri, name, description, classes)
 
     @staticmethod
     def get_pattern():
@@ -165,20 +190,33 @@ class PropertyQuestion(Question):
 
     def get_answer(self):
         top_property, confidence = self.main_entity.\
-            get_most_similar_prop(self.text_en, self.main_word, self.tokens)
+            get_most_similar_prop(self.text_en, self.subject_tokens, self.tokens)
         if confidence > 0.0001:
-            return top_property.get_value()[0]
+            answer_list = top_property.get_values()
+            final_answers = []
+            for answ in answer_list:
+                if utils.is_link(answ):
+                    # TODO: здесь можно идти по ссылке и забирать ещё информацию
+                    final_answer = utils.extract_link_entity(answ)
+                else:
+                    final_answer = answ
+                # another blacklist (dbpedia can have anything unexpected)
+                if final_answer not in ('*', ):
+                    final_answers.append(final_answer)
+            return self.translator.translate(', '.join(final_answers), 'ru')
         else:
-            return 'Пожалуйста, перефразируйте вопрос!'
+            return self.msg_rephrase
 
     @staticmethod
-    def find_main_entity(main_word):
-        return kdb.DBPediaKnowledgeBase().search(main_word)[0]
+    def search_subject(main_word):
+        uri, name, description, classes = kdb.DBPediaKnowledgeBase().search(main_word)
+        print('Lookup found:', uri)
+        return uri, name, description, classes
 
     @staticmethod
-    def find_main_word():
-        # TODO: придумать алгоритм определения нахождения главного слова или конструкции
-        return 'Pavlograd'
+    def find_subject(text_ru):
+        subject_finder = txt.SubjectFinder()
+        return subject_finder(text_ru)
 
 
 class WrongQuestion(Question):
@@ -191,22 +229,52 @@ class WrongQuestion(Question):
 
     @staticmethod
     def get_pattern():
-        return ['*', ]
+        # This pattern means: everything else goes as WrongQuestion
+        return ['*']
 
     def get_answer(self):
-        return ('Тип вопроса не распознан. '
-                'Спросите о какой-нибудь сущности либо её свойстве.')
+        return self.msg_unknown_type
 
 
 # TODO: def ask(question, debug_info=True):
 if __name__ == '__main__':
     t0 = time()
-    # question = PropertyQuestion('Какой почтовый код Павлограда?')
-    question = QuestionCategorizer('Что такое Павлоград?').categorize()
+    # 'Кто был научным руководителем Эйнштейна?'
+    q_ru = 'Кто такой Алан Тьюринг?'
+    question = QuestionCategorizer(q_ru).categorize()
     answer = question.get_answer()
-    print(question, answer, time() - t0, sep='\n')
-
-    # TODO: если answer - это ссылка, то пойти по ней. (или выделить ответ)
+    print(question, 'Answer: ' + answer, 'Time: ' + str(time() - t0), sep='\n')
 
 
+def future_tests():
+    # TODO: to tests
 
+    'Где родился Ленин?'
+    'Российская империя, Ульяновск'
+
+    'Кто был научным руководителем Эйнштейна?'
+    'Alfred Kleiner'
+
+    'Кто научный руководитель Тьюринга?'
+    'Чёрч, Алонзо'
+
+    'На кого повлиял Эйнштейн?'
+    'Эрнст G. Штраус, Лео Силард, Натан Розен'
+
+    'Кто такой Эйнштейн?'
+    'Albert Einstein was a German theoretical physicist'
+    'part string'
+
+    'Что такое Берлин?'
+    'Berlin is the capital city of Germany '
+    'part string'
+
+
+    'Население Украины?'
+    'error'
+
+    'Какое ВВП Украины?'
+    'not found in Lookup'
+
+    'Какая глубина Азовского Моря?'
+    'доделать определение сущностей из 2 слов (проверять первую большую букву)'

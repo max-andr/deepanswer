@@ -1,4 +1,5 @@
 import re
+
 import nltk
 import pymorphy2
 from nltk.corpus import wordnet
@@ -37,6 +38,10 @@ class QATokenizer:
                                   'when': 'date',
                                   'site': 'website',
                                   'mayor': 'leader',
+                                  'height': ['height', 'elevation'],
+                                  'supervisor': ['doctoral', 'advisor'],
+                                  'born': ['birth', 'date'],
+                                  'birthplace': ['birth', 'place'],
                                   'population': ['population', 'total'],
                                   'founded': ['founded', 'established'],
                                   'humidity': ['humidity', 'precipitation'],
@@ -160,3 +165,67 @@ class PatternMatcher:
         regex_result = re.match(regex_pattern, question_form)
         # print(question, pattern, regex_result, regex_result, sep=' | ')
         return bool(regex_result)
+
+
+class SubjectFinder:
+    morph = pymorphy2.MorphAnalyzer()
+
+    def __init__(self):
+        pass
+
+    def transform_question(self, question, pattern):
+        replaces = ('?', ''), ('!', '')
+        if 'NOUN' in pattern or 'VERB' in pattern:
+            pos_text_list = []
+            for token in nltk.word_tokenize(utils.multi_replace(question, replaces)):
+                pos = str(self.morph.tag(token)[0].POS)
+                if pos in ('NOUN', 'VERB'):
+                    if not pos_text_list:
+                        pos_text_list.append(pos)
+                    else:
+                        # 1 POS instead of 2 POS going one after another
+                        if pos_text_list[-1] != pos:
+                            pos_text_list.append(pos)
+                else:
+                    pos_text_list.append(token)
+            pos_text = ' '.join(pos_text_list)
+            return pos_text
+        return question
+
+    def __call__(self, question: str) -> str:
+        """
+        simple heuristic
+        """
+        words_list, pos_list, token_list = [], [], []
+        for token in nltk.word_tokenize(question):
+            # pos = self.morph.tag(token)[0].POS
+            parsed_word = self.morph.parse(token)[0]
+            pos = parsed_word.tag.POS
+            if pos is not None:
+                words_list.append(parsed_word.normal_form)
+                pos_list.append(pos)
+                token_list.append(token)
+        # 2 nouns together in the end and the first begins from big letter
+        if pos_list[-2:] == ['NOUN', 'NOUN'] and token_list[-2][0].isupper():
+            subject = ' '.join(words_list[-2:])
+        elif pos_list[-1] == 'NOUN':
+            subject = words_list[-1]
+        else:
+            raise Exception('Subject not found')
+        return subject
+
+
+# morph = pymorphy2.MorphAnalyzer()
+# # question = 'Где находится Нью-Йорк?'
+# question = 'В каком году родился Авраам Линкольн?'
+# token_list, pos_list = [], []
+# for token in nltk.word_tokenize(question):
+#     pos = morph.tag(token)[0].POS
+#     if pos is not None:
+#         token_list.append(token)
+#         pos_list.append(pos)
+#
+# if pos_list[-2:] == ['NOUN', 'NOUN']:
+#     main_word = ' '.join(token_list[-2:])
+# elif pos_list[-1] == 'NOUN':
+#     main_word = token_list[-1]
