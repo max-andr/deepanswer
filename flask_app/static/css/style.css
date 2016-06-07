@@ -1,0 +1,140 @@
+body {
+    font-family: PT Sans;
+    background: #eee;
+}
+
+a, h1, h2 {
+    color: #377BA8;
+}
+
+h1, h2 {
+    font-family: 'Georgia', serif;
+    margin: 0;
+}
+
+h1 {
+    border-bottom: 2px solid #eee;
+}
+
+h2 {
+    font-size: 1.2em;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+/* Google Now icon*/
+.gn {
+    margin-left: 2px;
+    cursor: pointer;
+    font-size: 3px;
+    position: relative;
+    /*margin: 5% auto;*/
+    background-color: orangered;
+    border-radius: 50%;
+    width: 12em;
+    height: 12em;
+}
+
+:before, :after {
+    content: '';
+    position: absolute;
+    background-color: #fff;
+}
+
+.gn:after {
+    top: 30%;
+    left: 43%;
+    height: 15%;
+    width: 14%;
+    border-top-left-radius: 50%;
+    border-top-right-radius: 50%;
+}
+
+.gn:before {
+    top: 40%;
+    left: 43%;
+    height: 15%;
+    width: 14%;
+    border-bottom-left-radius: 50%;
+    border-bottom-right-radius: 50%;
+}
+
+.mc {
+    position: absolute;
+    top: 50%;
+    left: 37%;
+    height: 24%;
+    width: 26.5%;
+    overflow: hidden;
+}
+
+.mc:before {
+    bottom: 50%;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 0.5em solid #fff;
+    background: none;
+}
+
+.mc:after {
+    top: 50%;
+    left: 40%;
+    width: 20%;
+    height: 25%;
+}
+
+/* Start by setting display:none to make this hidden.
+   Then we position it in relation to the viewport window
+   with position:fixed. Width, height, top and left speak
+   for themselves. Background we set to 80% white with
+   our animation centered, and no-repeating */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: rgba(255, 255, 255, .8) url('http://i.stack.imgur.com/FhHRx.gif') 50% 50% no-repeat;
+}
+
+/* When the body has the loading class, we turn
+   the scrollbar off with overflow:hidden */
+body.loading {
+    overflow: hidden;
+}
+
+/* Anytime the body has the loading class, our
+   modal element will be visible */
+body.loading .modal {
+    display: block;
+}
+
+.search-block {
+    position: relative;
+    top: 25%;
+}
+
+#answer-img {
+    display: block;
+    margin: 15px auto auto;
+}
+
+#question-hint {
+    margin-top: 3px;
+    margin-left: 13px;
+    margin-bottom: 7px;
+}
+
+#question-hint-text {
+    cursor: pointer;
+    color: dodgerblue;
+    border-bottom-style: dashed;
+    border-bottom-width: 2px;
+}

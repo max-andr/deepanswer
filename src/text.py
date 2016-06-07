@@ -43,7 +43,7 @@ class QATokenizer:
                                   'born': ['birth', 'date'],
                                   'birthplace': ['birth', 'place'],
                                   'population': ['population', 'total'],
-                                  'founded': ['founded', 'established'],
+                                  'founded': ['founded', 'established', 'date'],
                                   'humidity': ['humidity', 'precipitation'],
                                   'description': ['description', 'abstract']
                                   }

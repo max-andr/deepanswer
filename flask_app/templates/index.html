@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="static/css/bootstrap-theme.css">
+    <link rel="stylesheet" type="text/css" href="static/css/style.css">
+    <link href="//fonts.googleapis.com/css?family=PT+Sans" rel="stylesheet" type="text/css">
+
+</head>
+<body>
+<div class="search-block">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="question-field"
+                           placeholder="Введите ваш вопрос...">
+                      <span class="input-group-btn">
+                        <button class="btn btn-success" id="question-btn" type="button">Поиск</button>
+                      </span>
+                    <div class="gn" id="question-microphone" ><div class="mc"></div></div>
+
+                    <!--
+                    Бинарный отклик от пользователя
+                    Лувр-
+                    сообщение: ней найдено
+                    первая буква всегда делать большой
+                    убрать get_descr_properties из DescribeQuestion
+                    Анализ результатов: процент "правильных ответов" и сами заданные вопросы; критерий Стьюдента
+                    -->
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
+                <div id="question-hint" role="alert">
+                    Например: <i id="question-hint-text"> Какая столица Украины? </i>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
+                <div class="alert alert-info hidden" id="answer" role="alert">
+                    <div id="answer-text"></div>
+                    <img id="answer-img" src="" alt="Image">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal"><!-- Place at bottom of page --></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+<script src="static/js/bootstrap.min.js"></script>
+<script src="static/js/main.js"></script>
+
+</body>
+</html>
