@@ -2,7 +2,7 @@ import unittest
 from src.db import *
 
 
-class PropertyDescriptions(unittest.TestCase):
+class CachedPropertyDescriptions(unittest.TestCase):
     """
     Check some properties to be sure that DB have this basic sample.
     """

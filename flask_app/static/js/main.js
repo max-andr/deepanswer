@@ -14,15 +14,43 @@ function get_answer() {
             if (typeof(answer_object) != "undefined") {
                 var answer = answer_object['answer'];
                 var image = answer_object['image'] || '';
+                var error = answer_object['error'] || '';
                 $('#answer-text').text(answer);
-                $('#answer-img').attr("src", image);
+                if (image == '') {
+                    $('#answer-img').addClass('hidden');
+                }
+                else {
+                    $('#answer-img').attr("src", image);
+                    $('#answer-img').removeClass('hidden');
+                }
                 $('#answer').removeClass('hidden');
+                console.log(error);
+                if (!error) {
+                    console.log(error);
+                    $('#feedback-frame').removeClass('hidden');
+                }
+                else{
+                    $('#feedback-frame').addClass('hidden');
+                }
             } else {
-                $('#answer-text').html("Ошибка!");
+                $('#answer-text').html("Ошибка соединения с сервером!");
             }
             $('#answer-text').removeClass('hidden');
 
         }
+    });
+}
+
+function set_feedback(isCorrect) {
+    var data = {};
+    data['question'] = $('#question-field').val().trim();
+    data['language'] = 'ru';
+    data['isCorrect'] = isCorrect;
+    console.log(data);
+    $.ajax({
+        method: 'POST',
+        url: '/set_feedback',
+        data: data
     });
 }
 
@@ -45,12 +73,27 @@ $(document).on({
 
 
 $(document).ready(function () {
+    $('#feedback-btn-group').on('click', function () {
+        $('#feedback-frame').addClass('hidden');
+    });
+    $('#btn-no').on('click', function () {
+        set_feedback(false);
+    });
+    $('#btn-yes').on('click', function () {
+        set_feedback(true);
+    });
     // AJAX on click
     $('#question-btn').on('click', function () {
         get_answer();
     });
-    $('#question-hint').on('click', function () {
-        var question_hint_text = $('#question-hint-text').text();
+    $('#question-hint-text1').on('click', function () {
+        var question_hint_text = $('#question-hint-text1').text();
+        console.log(question_hint_text);
+        $('#question-field').val(question_hint_text);
+        get_answer();
+    });
+    $('#question-hint-text2').on('click', function () {
+        var question_hint_text = $('#question-hint-text2').text();
         console.log(question_hint_text);
         $('#question-field').val(question_hint_text);
         get_answer();
@@ -68,7 +111,9 @@ $(document).ready(function () {
         };
         recognition.onend = function (event) {
             get_answer();
+            $('#question-microphone').css('background-color', 'orangered');
         };
+        $('#question-microphone').css('background-color', 'gray');
         recognition.start();
     });
 });

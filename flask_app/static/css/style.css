@@ -118,7 +118,7 @@ body.loading .modal {
 
 .search-block {
     position: relative;
-    top: 25%;
+    top: 18%;
 }
 
 #answer-img {
@@ -132,9 +132,23 @@ body.loading .modal {
     margin-bottom: 7px;
 }
 
-#question-hint-text {
+#question-hint-text1, #question-hint-text2 {
+    margin-left: 4px;
+    margin-right: 4px;
     cursor: pointer;
     color: dodgerblue;
     border-bottom-style: dashed;
     border-bottom-width: 2px;
 }
+
+#btn-feedback{
+    text-align: center;
+}
+/*#btn-no{*/
+    /*background: red;*/
+    /*color: navajowhite;*/
+/*}*/
+/*#btn-yes{*/
+    /*background: green;*/
+    /*color: navajowhite;*/
+/*}*/

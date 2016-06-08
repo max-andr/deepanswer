@@ -20,15 +20,15 @@
                       <span class="input-group-btn">
                         <button class="btn btn-success" id="question-btn" type="button">Поиск</button>
                       </span>
-                    <div class="gn" id="question-microphone" ><div class="mc"></div></div>
+                    <div class="gn" id="question-microphone">
+                        <div class="mc"></div>
+                    </div>
 
                     <!--
                     Бинарный отклик от пользователя
-                    Лувр-
-                    сообщение: ней найдено
-                    первая буква всегда делать большой
-                    убрать get_descr_properties из DescribeQuestion
                     Анализ результатов: процент "правильных ответов" и сами заданные вопросы; критерий Стьюдента
+
+                    Внести изменение в ТЗ по поводу не 5-балльной шкалы, а 2-балльной
                     -->
                 </div>
             </div>
@@ -36,12 +36,22 @@
         <div class="row">
             <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
                 <div id="question-hint" role="alert">
-                    Например: <i id="question-hint-text"> Какая столица Украины? </i>
+                    Например:
+                    <i id="question-hint-text1"> Какая столица Украины? </i>
+                    или
+                    <i id="question-hint-text2"> Джордж Вашингтон? </i>
                 </div>
             </div>
         </div>
         <div class="row">
             <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
+                <div class="alert alert-warning hidden text-center" id="feedback-frame" role="alert">
+                    <div class="text-center"> Это правильный ответ? </div>
+                    <div class="btn-group" id="feedback-btn-group" role="group" aria-label="...">
+                        <button type="button" class="btn btn-success" id="btn-yes">&nbsp;Да&nbsp;</button>
+                        <button type="button" class="btn btn-warning" id="btn-no">Нет</button>
+                    </div>
+                </div>
                 <div class="alert alert-info hidden" id="answer" role="alert">
                     <div id="answer-text"></div>
                     <img id="answer-img" src="" alt="Image">
@@ -52,7 +62,7 @@
 </div>
 <div class="modal"><!-- Place at bottom of page --></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.2/jquery.min.js"></script>
+<script src="static/js/jquery.min.js"></script>
 <script src="static/js/bootstrap.min.js"></script>
 <script src="static/js/main.js"></script>
 

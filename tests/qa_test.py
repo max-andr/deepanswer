@@ -27,9 +27,8 @@ class PropertyPavlograd(unittest.TestCase):
         self.assertLessEqual(given - expected, 10**5)
 
     def test_rephrase(self):
-        given = PropertyQuestion('Какой борода Павлоград?').get_answer('en')
-        expected = 'Пожалуйста, перефразируйте вопрос!'
-        self.assertEqual(given, expected)
+        function_with_args = PropertyQuestion('Какой борода Павлоград?').get_answer, 'en'
+        self.assertRaises(LowAnswerConfidenceError, *function_with_args)
 
 
 class WholeWhoIs(unittest.TestCase):
@@ -71,9 +70,11 @@ class WholeProperty(unittest.TestCase):
         self.assertEqual(given, expected)
 
     def test_pavlograd_wrong(self):
-        given = QuestionCategorizer('Что такое Павлоград когда же?').categorize().get_answer('en')
-        substr_expected = 'Тип вопроса не распознан'
-        self.assertIn(substr_expected, given)
+        question = QuestionCategorizer('Что такое Павлоград когда же?').categorize()
+        function_with_args = question.get_answer, 'en'
+        self.assertRaises(UnknownQuestionTypeError, *function_with_args)
+
+
 
     def test_lennon_birthdate(self):
         given = QuestionCategorizer('Когда родился Джон Леннон?').categorize().get_answer('en')

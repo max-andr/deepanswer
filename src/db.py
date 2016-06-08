@@ -1,4 +1,6 @@
 import datetime as dt
+from statistics import mean
+
 import boto3
 import botocore.exceptions
 from urllib.parse import quote_plus, unquote_plus
@@ -54,7 +56,6 @@ class DB:
         except botocore.exceptions.ClientError as e:
             print(e)
 
-
     def get_property_descr(self, property_uri: str) -> str:
         """
         Get property description by its url
@@ -78,37 +79,43 @@ class DB:
                                                 "LIMIT 2500")
 
         prop_descr = dict()
-        for item in r['Items']:
-            if 'Attributes' in item:
-                flat_dict = self.get_attr_format(item['Attributes'])
-                prop_descr[unquote_plus(flat_dict['uri'])] = unquote_plus(flat_dict['description'])
+        if 'Items' in r:
+            for item in r['Items']:
+                if 'Attributes' in item:
+                    flat_dict = self.get_attr_format(item['Attributes'])
+                    prop_descr[unquote_plus(flat_dict['uri'])] = unquote_plus(flat_dict['description'])
         return prop_descr
 
-    def put_qa(self, question_ru: str, question_en: str, answer: str,
-               answer_property: str, exec_time: float):
+    def put_qa(self, question: str, language: str, is_correct: str) -> None:
         """
         Store QA data.
         """
-        dt_now = str(dt.datetime.now())
-        qa_dict = {'time_add':        dt_now,
-                   'question_ru':     question_ru,
-                   'question_en':     question_en,
-                   'answer':          answer,
-                   'answer_property': answer_property,
-                   'search_time':     exec_time if type(exec_time) is str else str(exec_time)}
-        self.client.put_attributes(DomainName=self.property_domain, ItemName=dt_now,
+        qa_dict = {'question':        quote_plus(question),
+                   'language':        language,
+                   'is_correct':      is_correct}
+        print('AWS saved:', qa_dict)
+        self.client.put_attributes(DomainName=self.qa_domain, ItemName=quote_plus(question),
                                    Attributes=self.put_attr_format(qa_dict))
 
-    def select_qa(self, date=dt.date.today()) -> dict:
+    def select_qa(self) -> dict:
         """
         Get QA data.
-        :param date: today date by default
         :return:
         """
         r = self.client.select(SelectExpression="SELECT * FROM questions "
-                                                "WHERE time_add like '{0}%'"
-                                                "ORDER BY time_add".format(date))
-        print(r)
+                                                # "WHERE time_add like '{0}%'"
+                                                # "ORDER BY time_add"
+        )
+        scores = []
+        for item in r['Items']:
+            if 'Attributes' in item:
+                flat_dict = self.get_attr_format(item['Attributes'])
+                question = unquote_plus(flat_dict['question'])
+                is_correct = unquote_plus(flat_dict['is_correct'])
+                scores.append(1 if is_correct == 'true' else 0)
+                print(question, is_correct)
+        print('Total QA result: {:.1%} with {} answers.'.
+              format(mean(scores), len(scores)))
         return r
 
 
@@ -117,12 +124,18 @@ def _admin_queries():
     db.client.create_domain(DomainName='properties')
     db.client.create_domain(DomainName='questions')
     db.client.list_domains()
-    # db.client.delete_domain(DomainName='properties')
+    # db.client.delete_domain(DomainName='questions')
+
 
 def _get_properties():
     db = DB()
     d = db.get_all_property_descr()
-    len(d.keys())
+    print(len(d.keys()))
+
+
+def _select_qa():
+    db = DB()
+    r = db.select_qa()
 # db = DB()
 # db.put_property_descr('http://dbpedia.org/property/website', 'Website')
 # db.put_property_descr('http://dbpedia.org/property/abstract', 'abstract')

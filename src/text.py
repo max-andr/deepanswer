@@ -30,21 +30,21 @@ class QATokenizer:
         # Different options for different texts
         if doc_type == 'question':
             # Easy way to cover more questions
-            self.substitutions = {'who': 'name',
-                                  'whom': 'name',
-                                  'whose': 'name',
-                                  'where': 'country',
-                                  'why': 'reason',
-                                  'when': 'date',
-                                  'site': 'website',
-                                  'mayor': 'leader',
-                                  'height': ['height', 'elevation'],
-                                  'supervisor': ['doctoral', 'advisor'],
-                                  'born': ['birth', 'date'],
-                                  'birthplace': ['birth', 'place'],
-                                  'population': ['population', 'total'],
-                                  'founded': ['founded', 'established', 'date'],
-                                  'humidity': ['humidity', 'precipitation'],
+            self.substitutions = {'who':         'name',
+                                  'whom':        'name',
+                                  'whose':       'name',
+                                  'where':       'country',
+                                  'why':         'reason',
+                                  'when':        'date',
+                                  'site':        'website',
+                                  'mayor':       'leader',
+                                  'height':      ['height', 'elevation'],
+                                  'supervisor':  ['doctoral', 'advisor'],
+                                  'born':        ['birth', 'date'],
+                                  'birthplace':  ['birth', 'place'],
+                                  'population':  ['population', 'total'],
+                                  'founded':     ['founded', 'established', 'date'],
+                                  'humidity':    ['humidity', 'precipitation'],
                                   'description': ['description', 'abstract']
                                   }
             self.black_list_substr = []
@@ -141,8 +141,13 @@ class PatternMatcher:
         replaces = ('?', ''), ('!', '')
         if 'NOUN' in pattern or 'VERB' in pattern:
             pos_text_list = []
-            for token in nltk.word_tokenize(utils.multi_replace(question, replaces)):
-                pos = str(self.morph.tag(token)[0].POS)
+            tokens = nltk.word_tokenize(utils.multi_replace(question, replaces))
+            for i, token in enumerate(tokens):
+                # If the letter is capital and this is not the first token, then consider it as NOUN
+                if token[0].isupper() and i != 0:
+                    pos = 'NOUN'
+                else:
+                    pos = str(self.morph.tag(token)[0].POS)
                 if pos in ('NOUN', 'VERB'):
                     if not pos_text_list:
                         pos_text_list.append(pos)
@@ -206,26 +211,27 @@ class SubjectFinder:
                 pos_list.append(pos)
                 token_list.append(token)
         # 2 nouns together in the end and the first begins from big letter
-        if pos_list[-2:] == ['NOUN', 'NOUN'] and token_list[-2][0].isupper():
-            subject = ' '.join(words_list[-2:])
-        elif pos_list[-1] == 'NOUN':
+        if len(pos_list) >= 2:
+            if (pos_list[-2:] == ['NOUN', 'NOUN'] and token_list[-2][0].isupper()
+                or token_list[-2][0].isupper() and token_list[-1][0].isupper()):
+                subject = ' '.join(words_list[-2:])
+                return subject
+        if pos_list[-1] == 'NOUN':
             subject = words_list[-1]
-        else:
-            raise Exception('Subject not found')
-        return subject
+            return subject
 
 
-# morph = pymorphy2.MorphAnalyzer()
-# # question = 'Где находится Нью-Йорк?'
-# question = 'В каком году родился Авраам Линкольн?'
-# token_list, pos_list = [], []
-# for token in nltk.word_tokenize(question):
-#     pos = morph.tag(token)[0].POS
-#     if pos is not None:
-#         token_list.append(token)
-#         pos_list.append(pos)
-#
-# if pos_list[-2:] == ['NOUN', 'NOUN']:
-#     main_word = ' '.join(token_list[-2:])
-# elif pos_list[-1] == 'NOUN':
-#     main_word = token_list[-1]
+        # morph = pymorphy2.MorphAnalyzer()
+        # # question = 'Где находится Нью-Йорк?'
+        # question = 'В каком году родился Авраам Линкольн?'
+        # token_list, pos_list = [], []
+        # for token in nltk.word_tokenize(question):
+        #     pos = morph.tag(token)[0].POS
+        #     if pos is not None:
+        #         token_list.append(token)
+        #         pos_list.append(pos)
+        #
+        # if pos_list[-2:] == ['NOUN', 'NOUN']:
+        #     main_word = ' '.join(token_list[-2:])
+        # elif pos_list[-1] == 'NOUN':
+        #     main_word = token_list[-1]

@@ -1,4 +1,5 @@
 import json
+import urllib.error
 from collections import defaultdict
 from importlib import reload
 
@@ -6,6 +7,7 @@ import requests
 from SPARQLWrapper import SPARQLWrapper, JSON
 import src.db as db
 import src.utils as utils
+
 for module in [db, utils]:
     reload(module)
 
@@ -14,6 +16,7 @@ class DBPediaKnowledgeBase:
     _db = db.DB()
     prop_descr = _db.get_all_property_descr()
     cached_prop_descr = prop_descr.copy()
+    basic_entity_class = 'http://www.w3.org/2002/07/owl#Thing'
     # list of meaningless properties for QA system
     prop_black_list = ['http://dbpedia.org/property/years',
                        'http://dbpedia.org/property/name']
@@ -39,6 +42,8 @@ class DBPediaKnowledgeBase:
             description = res['description']
             classes = [cls['uri'] for cls in res['classes']
                        if utils.is_dbpedia_link(cls['uri'])]
+            if not classes:
+                classes = [self.basic_entity_class]
             return uri, name, description, classes
         else:
             print('No results for <{0}> of class <{1}> (<{2}Search>)'.
@@ -50,7 +55,13 @@ class DBPediaKnowledgeBase:
         sparql.setReturnFormat(self.sparql_format)
         sparql.setTimeout(60)
         sparql.setQuery(query)
-        return sparql.query().convert()
+        counter = 0
+        while counter < 10:
+            try:
+                return sparql.query().convert()
+            except urllib.error.HTTPError:
+                print('Rerun SPARQL query due to HTTP error.')
+                counter += 1
 
     def get_entity_properties(self, entity_uri, entity_class):
         """
@@ -116,7 +127,6 @@ class DBPediaKnowledgeBase:
     def _add_to_cached_prop_descr(self, property_uri: str, descr: str):
         self.cached_prop_descr[property_uri] = descr
         self._db.put_property_descr(property_uri, descr)
-
 
 
 # 'é'.encode().decode()

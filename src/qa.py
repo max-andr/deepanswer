@@ -17,11 +17,28 @@ for module in [kdb, txt, utils]:
     reload(module)
 
 
+class EntityNotFoundError(Exception):
+    pass
+
+
+class LowAnswerConfidenceError(Exception):
+    pass
+
+
+class EmptyPropertyDescriptionsError(Exception):
+    pass
+
+
+class UnknownQuestionTypeError(Exception):
+    pass
+
+
 class Property:
-    def __init__(self, uri, values):
+    def __init__(self, uri, values, fl_get_descr=True):
         self.uri = uri
         self.values = values
-        self.descr = kdb.DBPediaKnowledgeBase().get_property_descr(self.uri)
+        self.fl_get_descr = fl_get_descr
+        self.descr = kdb.DBPediaKnowledgeBase().get_property_descr(self.uri) if fl_get_descr else ''
 
     def get_uri(self):
         return self.uri
@@ -40,11 +57,12 @@ class Property:
 
 
 class Entity:
-    def __init__(self, uri, name, description, classes):
+    def __init__(self, uri, name, description, classes, fl_prop_descr=True):
         self.uri = uri
         self.name = name
         self.description = description
-        self.classes = classes if classes else ['http://www.w3.org/2002/07/owl#Thing']
+        self.classes = classes
+        self.fl_prop_descr = fl_prop_descr
         self.properties = []
 
     def get_properties(self):
@@ -54,7 +72,7 @@ class Entity:
                 prop_dict = kdb.DBPediaKnowledgeBase().get_entity_properties(self.uri, cls)
                 if prop_dict != {}:
                     for key in prop_dict.keys():
-                        self.properties.append(Property(key, prop_dict[key]))
+                        self.properties.append(Property(key, prop_dict[key], self.fl_prop_descr))
                     # Take only first <cls> that gives result after SPARQL query
                     break
         return self.properties
@@ -73,19 +91,21 @@ class Entity:
         vect = TfidfVectorizer(ngram_range=(1, 3), sublinear_tf=True,
                                tokenizer=txt.QATokenizer('property', debug_info=True),
                                stop_words=subject_tokens)
-        props_matrix = vect.fit_transform(self.get_prop_descrs())
+        prop_descrs = self.get_prop_descrs()
+        if prop_descrs:
+            props_matrix = vect.fit_transform(prop_descrs)
 
-        # Change tokenizer to handle questions
-        vect.tokenizer = txt.QATokenizer('question', debug_info=True)
-        q_vector = vect.transform([text_en])
-        print('Bag of words vocabulary:', vect.get_feature_names())
-        sims = cosine_similarity(q_vector, props_matrix).flatten()
-        top_sims = sims.argsort()[:-print_top_n - 1:-1]
-        top_n_properties = itemgetter(*top_sims)(self.get_properties())
-        print('Top {0} properties by Bag of Words similarity:'.format(print_top_n),
-              *zip(top_n_properties, sims[top_sims]), sep='\n')
-        # return Property and confidence level
-        return top_n_properties[0], sims[top_sims][0]
+            # Change tokenizer to handle questions
+            vect.tokenizer = txt.QATokenizer('question', debug_info=True)
+            q_vector = vect.transform([text_en])
+            print('Bag of words vocabulary:', vect.get_feature_names())
+            sims = cosine_similarity(q_vector, props_matrix).flatten()
+            top_sims = sims.argsort()[:-print_top_n - 1:-1]
+            top_n_properties = itemgetter(*top_sims)(self.get_properties())
+            print('Top {0} properties by Bag of Words similarity:'.format(print_top_n),
+                  *zip(top_n_properties, sims[top_sims]), sep='\n')
+            # return Property and confidence level
+            return top_n_properties[0], sims[top_sims][0]
 
     def __str__(self):
         return self.uri + '\n'.join(self.properties)
@@ -96,7 +116,9 @@ class Entity:
 
 class QuestionCategorizer:
     def __init__(self, text_ru):
-        self.text_ru = text_ru.strip()
+        first_letter = text_ru.strip()[0].capitalize()
+        other_letters = text_ru.strip()[1:]
+        self.text_ru = first_letter + other_letters
         self.pattern_matcher = txt.PatternMatcher()
         self.question_types = [DescribeQuestion, PropertyQuestion, WrongQuestion]
 
@@ -123,18 +145,20 @@ class Question:
     Abstract base class for different Question types.
     """
     translator = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=')
-    msg_rephrase = 'Пожалуйста, перефразируйте вопрос!'
-    msg_unknown_type = ('Тип вопроса не распознан. '
-                        'Спросите о какой-нибудь сущности либо её свойстве.')
+    msg_entity_not_found = 'Указанная сущность не была найдена. Пожалуйста, перефразируйте вопрос!'
+    msg_entity_not_recognized = 'Указанная сущность не была распознана. Пожалуйста, перефразируйте вопрос!'
+    msg_property_not_found = 'Указанное свойство сущности не было найдено. Пожалуйста, перефразируйте вопрос!'
+    msg_unknown_type = 'Тип вопроса не распознан. Спросите о какой-нибудь сущности либо её свойстве.'
+    msg_no_property_descriptions = 'Указанная сущность не имеет свойств. Пожалуйста, задайте вопрос о другой сущности.'
 
     def __init__(self, text_ru):
         self.text_ru = text_ru
-        self.text_en = self.translator.translate(text_ru, 'en')
+        self.text_en = translate(self.translator, text_ru, 'en')
         self.tokenizer = txt.QATokenizer('question', debug_info=True)
         self.tokens = self.tokenizer(self.text_en)
 
     def __str__(self):
-        return ('Question type: ' + str(self.__class__) + '\n'
+        return ('Question type: ' + str(self.__class__) + '\n' +
                 'Question ru: ' + self.text_ru + '\n' +
                 'Question en: ' + self.text_en)
 
@@ -162,9 +186,9 @@ class DescribeQuestion(Question):
     def __init__(self, text_ru):
         super().__init__(text_ru)
         self.subject_ru = self.find_subject(self.text_ru)
-        self.subject_en = self.translator.translate(self.subject_ru, 'en')
+        self.subject_en = translate(self.translator, self.subject_ru, 'en')
         uri, name, description, classes = self.search_subject(self.subject_en)
-        self.main_entity = Entity(uri, name, description, classes)
+        self.main_entity = Entity(uri, name, description, classes, fl_prop_descr=False)
 
     @staticmethod
     def get_pattern():
@@ -172,24 +196,32 @@ class DescribeQuestion(Question):
 
     def get_answer(self, lang='ru'):
         descr = self.main_entity.description
-        if lang == 'en':
-            return descr
+        if descr:
+            if lang == 'en':
+                return descr
+            else:
+                return translate(self.translator, descr, lang)
         else:
-            return self.translator.translate(descr, lang)
+            raise EntityNotFoundError(self.msg_entity_not_found)
 
     def get_image(self):
         image_link = self.main_entity.get_image_link()
         return image_link if image_link else ''
 
-    @staticmethod
-    def search_subject(main_word):
-        uri, name, description, classes = kdb.DBPediaKnowledgeBase().search(main_word)
-        return uri, name, description, classes
+    def search_subject(self, main_word):
+        result = kdb.DBPediaKnowledgeBase().search(main_word)
+        if result:
+            return result
+        else:
+            raise EntityNotFoundError(self.msg_entity_not_found)
 
-    @staticmethod
-    def find_subject(text_ru):
+    def find_subject(self, text_ru):
         subject_finder = txt.SubjectFinder()
-        return subject_finder(text_ru)
+        result = subject_finder(text_ru)
+        if result:
+            return result
+        else:
+            raise EntityNotFoundError(self.msg_entity_not_recognized)
 
 
 class PropertyQuestion(Question):
@@ -202,16 +234,19 @@ class PropertyQuestion(Question):
     def __init__(self, text_ru):
         super().__init__(text_ru)
         self.subject_ru = self.find_subject(self.text_ru)
-        self.subject_en = self.translator.translate(self.subject_ru, 'en')
+        self.subject_en = translate(self.translator, self.subject_ru, 'en')
         self.subject_tokens = self.tokenizer(self.subject_en)
         uri, name, description, classes = self.search_subject(self.subject_en)
         self.main_entity = Entity(uri, name, description, classes)
-        self.top_property, self.answer_confidence = self.main_entity.\
-            get_most_similar_prop(self.text_en, self.subject_tokens, self.tokens)
+        top_property_result = self.main_entity.get_most_similar_prop(self.text_en, self.subject_tokens, self.tokens)
+        if top_property_result:
+            self.top_property, self.answer_confidence = top_property_result
+        else:
+            raise EmptyPropertyDescriptionsError(self.msg_no_property_descriptions)
 
     @staticmethod
     def get_pattern():
-        return ['* NOUN',]
+        return ['* NOUN', ]
 
     def get_answer(self, lang='ru'):
         if self.answer_confidence > 0.0001:
@@ -219,36 +254,39 @@ class PropertyQuestion(Question):
             final_answers = []
             for answ in answer_list:
                 if utils.is_dbpedia_link(answ):
-                    # TODO: здесь можно идти по ссылке и забирать ещё информацию
                     final_answer = utils.extract_link_entity(answ)
                 else:
                     final_answer = answ
                 # another blacklist (dbpedia can have anything unexpected)
-                if final_answer not in ('*', ):
+                if final_answer not in ('*',):
                     final_answers.append(final_answer)
             answer_str = ', '.join(final_answers)
             # ru en version (how about message?)
             if lang == 'en':
                 return answer_str
             else:
-                return self.translator.translate(answer_str, lang)
+                return translate(self.translator, answer_str, lang)
         else:
-            return self.msg_rephrase
+            raise LowAnswerConfidenceError(self.msg_property_not_found)
 
     def get_image(self):
         image_link = self.main_entity.get_image_link()
         return image_link if image_link else ''
 
-    @staticmethod
-    def search_subject(main_word):
-        uri, name, description, classes = kdb.DBPediaKnowledgeBase().search(main_word)
-        print('Lookup found:', uri)
-        return uri, name, description, classes
+    def search_subject(self, main_word):
+        result = kdb.DBPediaKnowledgeBase().search(main_word)
+        if result:
+            return result
+        else:
+            raise EntityNotFoundError(self.msg_entity_not_found)
 
-    @staticmethod
-    def find_subject(text_ru):
+    def find_subject(self, text_ru):
         subject_finder = txt.SubjectFinder()
-        return subject_finder(text_ru)
+        result = subject_finder(text_ru)
+        if result:
+            return result
+        else:
+            raise EntityNotFoundError(self.msg_entity_not_recognized)
 
 
 class WrongQuestion(Question):
@@ -265,36 +303,31 @@ class WrongQuestion(Question):
         return ['*']
 
     def get_answer(self, lang):
-        return self.msg_unknown_type
+        raise UnknownQuestionTypeError(self.msg_unknown_type)
+
 
 @lru_cache(maxsize=10000)
-def ask(q_text, language):
-    t0 = time()
-    question = QuestionCategorizer(q_text).categorize()
-    answer = question.get_answer(language)
-    image = question.get_image()
-    print(question, 'Answer: ' + answer, 'Time: ' + str(time() - t0), sep='\n')
-    return json.dumps({'answer': answer, 'image': image})
+def translate(translator, text, lang):
+    return translator.translate(text, lang)
+
+
+@utils.timeit
+@lru_cache(maxsize=10000)
+def ask(q_text, language='ru'):
+    try:
+        question = QuestionCategorizer(q_text).categorize()
+        print(question)
+        answer = question.get_answer(language)
+        image = question.get_image()
+        print('Answer: ' + answer, 'Image: ' + image, sep='\n')
+        return {'answer': answer, 'image': image}
+    except (EntityNotFoundError, LowAnswerConfidenceError,
+            UnknownQuestionTypeError, EmptyPropertyDescriptionsError) as e:
+        answer = e.args[0]
+        error = e.args[0]
+        image = ''
+        return {'answer': answer, 'image': image, 'error': error}
+
 
 if __name__ == '__main__':
-    t0 = time()
-    # 'Кто был научным руководителем Эйнштейна?'
-    # Когда родился Джон Леннон?
-    q_ru = 'Какой вебсайт у Днепропетровска?'
-    question = QuestionCategorizer(q_ru).categorize()
-    answer_en, answer_ru = question.get_answer('en'), question.get_answer('ru')
-    print(question, 'Answer en: ' + answer_en, 'Answer ru: ' + answer_ru,
-          'Image: ' + question.get_image(),
-          'Time: ' + str(time() - t0), sep='\n')
-
-
-def future_tests():
-
-    'Население Украины?'
-    'error'
-
-    'Какое ВВП Украины?'
-    'not found in Lookup'
-
-    'Какая глубина Азовского Моря?'
-    'доделать определение сущностей из 2 слов (проверять первую большую букву)'
+    ask('Где родился Эйнштейн?')
