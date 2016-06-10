@@ -1,9 +1,7 @@
-import json
 from abc import abstractmethod
 from functools import lru_cache
 from importlib import reload
 from operator import itemgetter
-from time import time
 
 from microsofttranslator import Translator
 from sklearn.feature_extraction.text import TfidfVectorizer

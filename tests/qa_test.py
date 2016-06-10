@@ -74,8 +74,6 @@ class WholeProperty(unittest.TestCase):
         function_with_args = question.get_answer, 'en'
         self.assertRaises(UnknownQuestionTypeError, *function_with_args)
 
-
-
     def test_lennon_birthdate(self):
         given = QuestionCategorizer('Когда родился Джон Леннон?').categorize().get_answer('en')
         expected = '1940-10-09'

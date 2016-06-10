@@ -100,7 +100,6 @@ class DB:
     def select_qa(self) -> dict:
         """
         Get QA data.
-        :return:
         """
         r = self.client.select(SelectExpression="SELECT * FROM questions "
                                                 # "WHERE time_add like '{0}%'"
@@ -124,7 +123,6 @@ def _admin_queries():
     db.client.create_domain(DomainName='properties')
     db.client.create_domain(DomainName='questions')
     db.client.list_domains()
-    # db.client.delete_domain(DomainName='questions')
 
 
 def _get_properties():

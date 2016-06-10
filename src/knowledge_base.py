@@ -133,4 +133,4 @@ class DBPediaKnowledgeBase:
 # 'é'.encode()
 # kdb = DBPediaKnowledgeBase()
 # kdb.search('Lenin')
-DBPediaKnowledgeBase().search('Pavlohrad')
+# DBPediaKnowledgeBase().search('Pavlohrad')
