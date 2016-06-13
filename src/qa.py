@@ -143,8 +143,8 @@ class Question:
     Abstract base class for different Question types.
     """
     translator = Translator('max-andr', '36OSL0SDYEtJCS1Z9kmDvbXkaOFeriDcB2ZvLSAA+q8=')
-    msg_entity_not_found = 'Указанная сущность не была найдена. Пожалуйста, перефразируйте вопрос!'
-    msg_entity_not_recognized = 'Указанная сущность не была распознана. Пожалуйста, перефразируйте вопрос!'
+    msg_entity_not_found = 'Указанная сущность не была найдена в базе. Пожалуйста, перефразируйте вопрос!'
+    msg_entity_not_recognized = 'Указанная сущность не была распознана в вопросе. Пожалуйста, перефразируйте вопрос!'
     msg_property_not_found = 'Указанное свойство сущности не было найдено. Пожалуйста, перефразируйте вопрос!'
     msg_unknown_type = 'Тип вопроса не распознан. Спросите о какой-нибудь сущности либо её свойстве.'
     msg_no_property_descriptions = 'Указанная сущность не имеет свойств. Пожалуйста, задайте вопрос о другой сущности.'

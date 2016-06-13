@@ -31,18 +31,18 @@ class MetaInfo(unittest.TestCase):
         self.db = DB()
 
     def test_property_domain(self):
-        container = self.db.client.list_domains()['DomainNames']
+        container = self.db._client.list_domains()['DomainNames']
         member = 'properties'
         self.assertIn(member, container)
 
     def test_questions_domain(self):
-        container = self.db.client.list_domains()['DomainNames']
+        container = self.db._client.list_domains()['DomainNames']
         member = 'questions'
         self.assertIn(member, container)
 
     def test_count_properties(self):
         query = "SELECT count(*) FROM properties"
-        r = self.db.client.select(SelectExpression=query)
+        r = self.db._client.select(SelectExpression=query)
         count_properties = int(r['Items'][0]['Attributes'][0]['Value'])
         lower_boundary = 10
         self.assertGreater(count_properties, lower_boundary)

@@ -26,13 +26,13 @@ class EntityProperties(unittest.TestCase):
         self.kdb = DBPediaKnowledgeBase()
 
     def test_pavlohrad(self):
-        prop_value = self.kdb.get_entity_properties('http://dbpedia.org/resource/Pavlohrad', self.kdb.basic_entity_class)
+        prop_value = self.kdb.get_entity_properties('http://dbpedia.org/resource/Pavlohrad', self.kdb._basic_entity_class)
         given = prop_value['http://dbpedia.org/ontology/maximumElevation']
         expected = ['71.0']
         self.assertEqual(given, expected)
 
     def test_new_york(self):
-        prop_value = self.kdb.get_entity_properties('http://dbpedia.org/resource/New_York', self.kdb.basic_entity_class)
+        prop_value = self.kdb.get_entity_properties('http://dbpedia.org/resource/New_York', self.kdb._basic_entity_class)
         given = prop_value['http://dbpedia.org/property/timezone']
         expected = ['http://dbpedia.org/resource/Coordinated_Universal_Time',
                     'http://dbpedia.org/resource/Eastern_Time_Zone']

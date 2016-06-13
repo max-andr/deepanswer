@@ -17,6 +17,8 @@ $(document).on({
 
 
 $(document).ready(function () {
+    get_feedback_stats();
+    
     $('#feedback-btn-group').on('click', function () {
         $('#feedback-frame').addClass('hidden');
     });

@@ -38,6 +38,16 @@
         </div>
         <div class="row">
             <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
+                <div id="feedback-stats" role="alert">
+                    Точность системы:&nbsp;
+                    <i id="feedback-stats-accuracy"></i>% &nbsp;
+                    (на основании <i id="feedback-stats-count"></i> уникальных вопросов)
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">
                 <div class="alert alert-warning hidden text-center" id="feedback-frame" role="alert">
                     <div class="text-center"> Это правильный ответ? </div>
                     <div class="btn-group" id="feedback-btn-group" role="group" aria-label="...">
@@ -53,6 +63,14 @@
         </div>
     </div>
 </div>
+<!--<div class="navbar-fixed-top text-center col-lg-6 col-lg-offset-3 col-md-6 col-md-offset-3  col-sm-6 col-sm-offset-3">-->
+    <!--<div id="feedback-stats" role="alert">-->
+        <!--Точность системы:&nbsp;-->
+        <!--<i id="feedback-stats-accuracy"></i>% &nbsp;-->
+        <!--(на основании <i id="feedback-stats-count"></i> оценок)-->
+    <!--</div>-->
+<!--</div>-->
+
 <div class="modal"><!-- Place at bottom of page --></div>
 
 <script src="static/js/jquery.min.js"></script>

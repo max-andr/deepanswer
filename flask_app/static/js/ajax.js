@@ -50,6 +50,21 @@ function get_answer() {
     });
 }
 
+function get_feedback_stats() {
+    $.ajax({
+        method: 'GET',
+        url: '/get_feedback_stats',
+        success: function (answer_json) {
+            var answer_object = JSON.parse(answer_json);
+            console.log(answer_object);
+            var avg = answer_object['avg_score'];
+            var cnt = answer_object['count_answers'];
+            $('#feedback-stats-accuracy').text((avg*100).toFixed(2));
+            $('#feedback-stats-count').text(cnt);
+        }
+    });
+}
+
 function set_feedback(isCorrect) {
     var data = {};
     data['question'] = $('#question-field').val().trim();
@@ -59,6 +74,9 @@ function set_feedback(isCorrect) {
     $.ajax({
         method: 'POST',
         url: '/set_feedback',
-        data: data
+        data: data,
+        success: function () {
+            get_feedback_stats();
+        }
     });
 }

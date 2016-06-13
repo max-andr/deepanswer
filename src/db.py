@@ -12,9 +12,9 @@ class DB:
     """
 
     def __init__(self):
-        self.client = boto3.client('sdb')
-        self.property_domain = 'properties'
-        self.qa_domain = 'questions'
+        self._client = boto3.client('sdb')
+        self._property_domain = 'properties'
+        self._qa_domain = 'questions'
 
     @staticmethod
     def put_attr_format(dictionary: dict, replace=False) -> list:
@@ -51,8 +51,8 @@ class DB:
                          'uri':         quote_plus(property_uri),
                          'description': quote_plus(property_descr)}
         try:
-            self.client.put_attributes(DomainName=self.property_domain, ItemName=property_uri,
-                                       Attributes=self.put_attr_format(property_dict, replace=True))
+            self._client.put_attributes(DomainName=self._property_domain, ItemName=property_uri,
+                                        Attributes=self.put_attr_format(property_dict, replace=True))
         except botocore.exceptions.ClientError as e:
             print(e)
 
@@ -62,7 +62,7 @@ class DB:
         :param property_uri:
         :return:
         """
-        r = self.client.get_attributes(DomainName=self.property_domain, ItemName=property_uri)
+        r = self._client.get_attributes(DomainName=self._property_domain, ItemName=property_uri)
         # Convert back to dt: dt.datetime.strptime(str_time, '%Y-%m-%d %H:%M:%S.%f')
         property_dict = self.get_attr_format(r['Attributes'])
         return unquote_plus(property_dict['description'])
@@ -73,7 +73,7 @@ class DB:
         :param property_uri:
         :return:
         """
-        r = self.client.select(SelectExpression="SELECT uri, description FROM properties "
+        r = self._client.select(SelectExpression="SELECT uri, description FROM properties "
                                                 "WHERE uri is not NULL and "
                                                 "      description is not NULL "
                                                 "LIMIT 2500")
@@ -94,17 +94,15 @@ class DB:
                    'language':        language,
                    'is_correct':      is_correct}
         print('AWS saved:', qa_dict)
-        self.client.put_attributes(DomainName=self.qa_domain, ItemName=quote_plus(question),
-                                   Attributes=self.put_attr_format(qa_dict))
+        self._client.put_attributes(DomainName=self._qa_domain, ItemName=quote_plus(question),
+                                    Attributes=self.put_attr_format(qa_dict, replace=True))
 
-    def select_qa(self) -> dict:
+    def get_qa_quality(self) -> dict:
         """
         Get QA data.
         """
-        r = self.client.select(SelectExpression="SELECT * FROM questions "
-                                                # "WHERE time_add like '{0}%'"
-                                                # "ORDER BY time_add"
-        )
+        r = self._client.select(SelectExpression="SELECT * FROM questions ",
+                                ConsistentRead=True)
         scores = []
         for item in r['Items']:
             if 'Attributes' in item:
@@ -113,16 +111,19 @@ class DB:
                 is_correct = unquote_plus(flat_dict['is_correct'])
                 scores.append(1 if is_correct == 'true' else 0)
                 print(question, is_correct)
+        avg_score = mean(scores)
+        count_answers = len(scores)
         print('Total QA result: {:.1%} with {} answers.'.
-              format(mean(scores), len(scores)))
-        return r
+              format(avg_score, count_answers))
+        return {'avg_score': avg_score,
+                'count_answers': count_answers}
 
 
 def _admin_queries():
     db = DB()
-    db.client.create_domain(DomainName='properties')
-    db.client.create_domain(DomainName='questions')
-    db.client.list_domains()
+    db._client.create_domain(DomainName='properties')
+    db._client.create_domain(DomainName='questions')
+    db._client.list_domains()
 
 
 def _get_properties():
@@ -133,7 +134,7 @@ def _get_properties():
 
 def _select_qa():
     db = DB()
-    r = db.select_qa()
+    r = db.get_qa_quality()
 # db = DB()
 # db.put_property_descr('http://dbpedia.org/property/website', 'Website')
 # db.put_property_descr('http://dbpedia.org/property/abstract', 'abstract')

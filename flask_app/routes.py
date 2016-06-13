@@ -27,3 +27,8 @@ def set_feedback():
     is_correct = request.form['isCorrect']
     DB().put_qa(question, language, is_correct)
     return json.dumps({'success': True})
+
+
+@app.route('/get_feedback_stats', methods=['GET'])
+def get_feedback_stats():
+    return json.dumps(DB().get_qa_quality())

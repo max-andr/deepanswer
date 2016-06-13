@@ -178,25 +178,6 @@ class SubjectFinder:
     def __init__(self):
         pass
 
-    def transform_question(self, question, pattern):
-        replaces = ('?', ''), ('!', '')
-        if 'NOUN' in pattern or 'VERB' in pattern:
-            pos_text_list = []
-            for token in nltk.word_tokenize(utils.multi_replace(question, replaces)):
-                pos = str(self.morph.tag(token)[0].POS)
-                if pos in ('NOUN', 'VERB'):
-                    if not pos_text_list:
-                        pos_text_list.append(pos)
-                    else:
-                        # 1 POS instead of 2 POS going one after another
-                        if pos_text_list[-1] != pos:
-                            pos_text_list.append(pos)
-                else:
-                    pos_text_list.append(token)
-            pos_text = ' '.join(pos_text_list)
-            return pos_text
-        return question
-
     def __call__(self, question: str) -> str:
         """
         simple heuristic

@@ -132,6 +132,12 @@ body.loading .modal {
     margin-bottom: 7px;
 }
 
+#feedback-stats {
+    margin-top: 3px;
+    margin-left: 13px;
+    margin-bottom: 7px;
+}
+
 #question-hint-text1, #question-hint-text2 {
     margin-left: 4px;
     margin-right: 4px;

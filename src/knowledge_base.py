@@ -14,20 +14,20 @@ for module in [db, utils]:
 
 class DBPediaKnowledgeBase:
     _db = db.DB()
-    prop_descr = _db.get_all_property_descr()
-    cached_prop_descr = prop_descr.copy()
-    basic_entity_class = 'http://www.w3.org/2002/07/owl#Thing'
+    _prop_descr = _db.get_all_property_descr()
+    _cached_prop_descr = _prop_descr.copy()
+    _basic_entity_class = 'http://www.w3.org/2002/07/owl#Thing'
     # list of meaningless properties for QA system
-    prop_black_list = ['http://dbpedia.org/property/years',
+    _prop_black_list = ['http://dbpedia.org/property/years',
                        'http://dbpedia.org/property/name']
 
     def __init__(self):
-        self.sparql_uri = 'http://dbpedia.org/sparql'
-        self.sparql_format = JSON
-        self.lookup_uri = 'http://lookup.dbpedia.org/api/search/'
+        self._sparql_uri = 'http://dbpedia.org/sparql'
+        self._sparql_format = JSON
+        self._lookup_uri = 'http://lookup.dbpedia.org/api/search/'
 
     def search(self, string, cls='', type_='Keyword', max_hits=1):
-        url = self.lookup_uri + type_ + 'Search'
+        url = self._lookup_uri + type_ + 'Search'
         params = {'QueryString': string,
                   'QueryClass':  cls,
                   'MaxHits':     max_hits}
@@ -43,7 +43,7 @@ class DBPediaKnowledgeBase:
             classes = [cls['uri'] for cls in res['classes']
                        if utils.is_dbpedia_link(cls['uri'])]
             if not classes:
-                classes = [self.basic_entity_class]
+                classes = [self._basic_entity_class]
             return uri, name, description, classes
         else:
             print('No results for <{0}> of class <{1}> (<{2}Search>)'.
@@ -51,15 +51,15 @@ class DBPediaKnowledgeBase:
             return None
 
     def sparql(self, query):
-        sparql = SPARQLWrapper(self.sparql_uri)
-        sparql.setReturnFormat(self.sparql_format)
+        sparql = SPARQLWrapper(self._sparql_uri)
+        sparql.setReturnFormat(self._sparql_format)
         sparql.setTimeout(60)
         sparql.setQuery(query)
         counter = 0
         while counter < 10:
             try:
                 return sparql.query().convert()
-            except urllib.error.HTTPError:
+            except (urllib.error.HTTPError, urllib.error.URLError):
                 print('Rerun SPARQL query due to HTTP error.')
                 counter += 1
 
@@ -101,11 +101,11 @@ class DBPediaKnowledgeBase:
         return prop_dict
 
     def get_property_descr(self, property_uri):
-        if property_uri in self.prop_black_list:
+        if property_uri in self._prop_black_list:
             # Just return empty description
             return ''
-        if property_uri in self.cached_prop_descr:
-            descr = self.cached_prop_descr[property_uri]
+        if property_uri in self._cached_prop_descr:
+            descr = self._cached_prop_descr[property_uri]
         else:
             print("Fetch property descr from DBpedia:", property_uri)
 
@@ -125,7 +125,7 @@ class DBPediaKnowledgeBase:
         return descr
 
     def _add_to_cached_prop_descr(self, property_uri: str, descr: str):
-        self.cached_prop_descr[property_uri] = descr
+        self._cached_prop_descr[property_uri] = descr
         self._db.put_property_descr(property_uri, descr)
 
 
