@@ -1,6 +1,5 @@
-# deepanswer
-The code for my Bachelor Thesis at DNURT:
-"Development of system for access to encyclopedic knowledge in natural language"
+# Development of system for access to encyclopedic knowledge in natural language
+This is the code for my Bachelor Thesis at DNURT.
 
-Easy way to interact with Semantic Web by simple words.
+It allows to easily interact with Semantic Web by simple words.
 
