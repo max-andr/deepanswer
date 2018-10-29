@@ -6,3 +6,5 @@
 
 # Tmp files
 .~*.docx
+
+.DS_Store
